@@ -11,7 +11,7 @@ struct Cli {
     path: std::path::PathBuf,
 }
 
-fn main() -> Result<()> {
+fn main() {
     let args = Cli::from_args();
     let data = fs::read_to_string(&args.path).expect("Unable to read file");
 
@@ -26,6 +26,4 @@ fn main() -> Result<()> {
         }
         Err(e) => println!("{:?}", e),
     }
-
-    Ok(())
 }

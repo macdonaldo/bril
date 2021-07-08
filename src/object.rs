@@ -166,19 +166,23 @@ impl Function {
             instrs: vec![],
         };
 
-        for i in 0..self.instrs.len() {
-            let current = &self.instrs[i];
-
+        let mut iter = self.instrs.iter().peekable();
+        while let Some(current) = iter.next() {
             if current.is_label() {
                 bb.label = current.get_label();
             } else {
                 bb.instrs.push(current);
+                let next_has_label = match iter.peek() {
+                    Some(next) if next.is_label() => true,
+                    _ => false,
+                };
 
                 // this is the last basic block or the next one has a label
-                if i + 1 == self.instrs.len() || self.instrs[i + 1].is_label() {
+                if iter.peek().is_none() || next_has_label {
                     basic_blocks.push(bb.clone());
                     bb.instrs.clear();
                 } else {
+                    // current instruction is a terminator, so current basic block ends here
                     if current.is_terminator() {
                         basic_blocks.push(bb.clone());
                         bb.instrs.clear();
@@ -193,29 +197,36 @@ impl Function {
         basic_blocks
     }
 
-    pub fn get_successors<'a>(&self, basic_blocks: &'a Vec<BasicBlock>) -> HashMap<&'a str, Vec<&'a str>> {
+    pub fn get_successors<'a>(
+        &self,
+        basic_blocks: &'a Vec<BasicBlock>,
+    ) -> HashMap<&'a str, Vec<&'a str>> {
         let mut successors = HashMap::new();
 
-        for i in 0..basic_blocks.len() {
-            let bb = &basic_blocks[i];
+        let mut iter = basic_blocks.iter().peekable();
+        while let Some(current) = iter.next() {
+            let current_label: &str = current.label.as_ref();
 
-            let last = &bb.instrs.len() - 1;
-            let current_label: &str = bb.label.as_ref();
-
-            if bb.instrs[last].is_terminator() {
-                match bb.instrs[last] {
-                    Code::Instruction(Instruction::Effect { labels, .. }) => {
-                        let referenced_labels: Vec<&str> =
-                            labels.iter().map(AsRef::as_ref).collect();
-                        successors.insert(current_label, referenced_labels);
+            match current.instrs.last() {
+                Some(l) => {
+                    if l.is_terminator() {
+                        match l {
+                            Code::Instruction(Instruction::Effect { labels, .. }) => {
+                                let referenced_labels: Vec<&str> =
+                                    labels.iter().map(AsRef::as_ref).collect();
+                                successors.insert(current_label, referenced_labels);
+                            }
+                            _ => (),
+                        }
+                    } else if let Some(next) = iter.peek() {
+                        let next_label = vec![next.label.as_ref()];
+                        successors.insert(current_label, next_label);
                     }
-                    _ => (),
-                };
-            } else if i + 1 < basic_blocks.len() {
-                let next_label = vec![basic_blocks[i + 1].label.as_ref()];
-                successors.insert(current_label, next_label);
+                }
+                _ => (),
             }
         }
+
         successors
     }
 
@@ -229,7 +240,11 @@ impl Function {
         for entry in basic_block {
             if let Some(list) = successors.get(entry.label.as_str()) {
                 for succ in list {
-                    println!("\t{} -> {};", entry.label.replace(".", "_"), succ.replace(".", "_"));
+                    println!(
+                        "\t{} -> {};",
+                        entry.label.replace(".", "_"),
+                        succ.replace(".", "_")
+                    );
                 }
             }
         }
@@ -267,9 +282,11 @@ impl Code {
 pub fn print_basic_blocks(program: &Program) -> Result<()> {
     for function in program.functions.iter() {
         let basic_block = function.get_basic_blocks();
+
         println!("Function: {}", function.name);
         for bb in basic_block.iter() {
             println!("Basic Block: {}", bb.label);
+
             for instr in &bb.instrs {
                 println!("{}", serde_json::to_string_pretty(instr)?);
             }
