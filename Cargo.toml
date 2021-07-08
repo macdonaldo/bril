@@ -1,0 +1,27 @@
+[package]
+name = "bril"
+version = "0.1.0"
+authors = ["Macdonald <macdonald.umoren@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+structopt = "0.3.13"
+
+[lib]
+name = "bril"
+path = "src/lib.rs"
+doctest = false
+
+[[bin]]
+name = "bril"
+path = "src/main.rs"
+test = false
+bench = false
+
+# [[test]]
+# name = "tests"
+# path = "tests/lexer.rs"
