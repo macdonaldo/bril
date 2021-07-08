@@ -172,24 +172,20 @@ impl Function {
                 bb.label = current.get_label();
             } else {
                 bb.instrs.push(current);
-                let next_has_label = match iter.peek() {
+                let next_is_label = match iter.peek() {
                     Some(next) if next.is_label() => true,
                     _ => false,
                 };
 
-                // this is the last basic block or the next one has a label
-                if iter.peek().is_none() || next_has_label {
+                // this is the end of the current basic block
+                if iter.peek().is_none() || next_is_label || current.is_terminator() {
                     basic_blocks.push(bb.clone());
                     bb.instrs.clear();
-                } else {
-                    // current instruction is a terminator, so current basic block ends here
-                    if current.is_terminator() {
-                        basic_blocks.push(bb.clone());
-                        bb.instrs.clear();
+                }
 
-                        let label = format!("{}_bb{}", &self.name, basic_blocks.len());
-                        bb.label = label;
-                    }
+                // create a label for the next basic block if missing
+                if current.is_terminator() && !next_is_label {
+                    bb.label = format!("{}_bb{}", &self.name, basic_blocks.len());
                 }
             }
         }
@@ -207,23 +203,17 @@ impl Function {
         while let Some(current) = iter.next() {
             let current_label: &str = current.label.as_ref();
 
-            match current.instrs.last() {
-                Some(l) => {
-                    if l.is_terminator() {
-                        match l {
-                            Code::Instruction(Instruction::Effect { labels, .. }) => {
-                                let referenced_labels: Vec<&str> =
-                                    labels.iter().map(AsRef::as_ref).collect();
-                                successors.insert(current_label, referenced_labels);
-                            }
-                            _ => (),
-                        }
-                    } else if let Some(next) = iter.peek() {
-                        let next_label = vec![next.label.as_ref()];
-                        successors.insert(current_label, next_label);
+            if let Some(last) = current.instrs.last() {
+                if last.is_terminator() {
+                    if let Code::Instruction(Instruction::Effect { labels, .. }) = last {
+                        let referenced_labels: Vec<&str> =
+                            labels.iter().map(AsRef::as_ref).collect();
+                        successors.insert(current_label, referenced_labels);
                     }
+                } else if let Some(next) = iter.peek() {
+                    let next_label = vec![next.label.as_ref()];
+                    successors.insert(current_label, next_label);
                 }
-                _ => (),
             }
         }
 

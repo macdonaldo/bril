@@ -1,5 +1,5 @@
 use serde_json::Result;
-use std::{fmt::Debug, fs};
+use std::fs;
 use structopt::StructOpt;
 
 mod object;
