@@ -193,11 +193,15 @@ impl Function {
         basic_blocks
     }
 
-    pub fn get_successors<'a>(
+    pub fn get_edges<'a>(
         &self,
         basic_blocks: &'a Vec<BasicBlock>,
-    ) -> HashMap<&'a str, Vec<&'a str>> {
+    ) -> (
+        HashMap<&'a str, Vec<&'a str>>,
+        HashMap<&'a str, Vec<&'a str>>,
+    ) {
         let mut successors = HashMap::new();
+        let mut predecessors = HashMap::new();
 
         let mut iter = basic_blocks.iter().peekable();
         while let Some(current) = iter.next() {
@@ -208,18 +212,26 @@ impl Function {
                     if let Code::Instruction(Instruction::Effect { labels, .. }) = last {
                         let referenced_labels: Vec<&str> =
                             labels.iter().map(AsRef::as_ref).collect();
+
+                        for &label in &referenced_labels {
+                            let entry = predecessors.entry(label).or_insert(vec![]);
+                            (*entry).push(current_label);
+                        }
                         successors.insert(current_label, referenced_labels);
                     }
                 } else if let Some(next) = iter.peek() {
                     let next_label = vec![next.label.as_ref()];
                     successors.insert(current_label, next_label);
+
+                    let entry = predecessors.entry(next.label.as_ref()).or_insert(vec![]);
+                    (*entry).push(current_label);
                 }
             }
         }
 
-        successors
+        (successors, predecessors)
     }
-
+    
     pub fn cfg_dot(&self, basic_block: &Vec<BasicBlock>, successors: &HashMap<&str, Vec<&str>>) {
         println!("digraph {} {{", self.name);
 
@@ -241,6 +253,17 @@ impl Function {
 
         println!("}}");
     }
+
+    pub fn count_add_ops(&self) -> u64 {
+        self.instrs.iter().fold(0, |acc, code| {
+            acc + match code {
+                Code::Instruction(Instruction::Value {
+                    op: ValueOps::Add, ..
+                }) => 1,
+                _ => 0,
+            }
+        })
+    }
 }
 
 impl Code {
@@ -261,7 +284,7 @@ impl Code {
     pub fn is_terminator(&self) -> bool {
         match &self {
             Code::Instruction(Instruction::Effect { op, .. }) => match op {
-                EffectOps::Br | EffectOps::Jmp => true,
+                EffectOps::Br | EffectOps::Jmp | EffectOps::Ret => true,
                 _ => false,
             },
             _ => false,

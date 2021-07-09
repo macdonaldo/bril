@@ -20,7 +20,8 @@ fn main() {
         Ok(p) => {
             for f in &p.functions {
                 let basic_blocks = f.get_basic_blocks();
-                let successors = f.get_successors(&basic_blocks);
+                let (successors, _) = f.get_edges(&basic_blocks);
+                println!("add count: {}", f.count_add_ops());
                 f.cfg_dot(&basic_blocks, &successors);
             }
         }
